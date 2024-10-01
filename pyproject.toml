@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "hcs-test-assignment"
+version = "0.1.0"
+description = ""
+authors = ["2rage <the2rage@icloud.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.115.0"
+uvicorn = "^0.31.0"
+celery = "^5.4.0"
+pymongo = "4.9.0"
+motor = "3.6.0"
+redis = "^5.1.0"
+flower = "^2.0.1"
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.8.0"
+flake8 = "^7.1.1"
+pytest = "^8.3.3"
+pytest-asyncio = "^0.24.0"
+httpx = "^0.27.2"
+pytest-celery = "^1.1.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
