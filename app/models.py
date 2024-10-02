@@ -1,38 +1,39 @@
-from bson import ObjectId
-from pydantic import BaseModel, Field
+from sqlalchemy import Column, Integer, String, Float, ForeignKey
+from sqlalchemy.orm import relationship
+from app.database import Base
 
 
-class PyObjectId(ObjectId):
+class House(Base):
+    __tablename__ = "houses"
 
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, v):
-        if not ObjectId.is_valid(v):
-            raise ValueError("Invalid ObjectId")
-        return ObjectId(v)
-
-    @classmethod
-    def __get_pydantic_json_schema__(cls, core_schema, handler):
-        return {"type": "string", "format": "objectid"}
+    id = Column(Integer, primary_key=True, index=True)
+    address = Column(String, index=True)
+    apartments = relationship("Apartment", back_populates="house")
 
 
-class House(BaseModel):
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-    address: str
-    apartments: list
+class Apartment(Base):
+    __tablename__ = "apartments"
 
-    class Config:
-        json_encoders = {ObjectId: str}
-        populate_by_name = True
+    id = Column(Integer, primary_key=True, index=True)
+    area = Column(Float)
+    house_id = Column(Integer, ForeignKey("houses.id"))
+    house = relationship("House", back_populates="apartments")
+    meters = relationship("Meter", back_populates="apartment")
 
 
-class Tariff(BaseModel):
-    name: str
-    price_per_square_meter: float
+class Meter(Base):
+    __tablename__ = "meters"
 
-    class Config:
-        json_encoders = {ObjectId: str}
-        populate_by_name = True
+    id = Column(Integer, primary_key=True, index=True)
+    type = Column(String)
+    readings = Column(String)
+    apartment_id = Column(Integer, ForeignKey("apartments.id"))
+    apartment = relationship("Apartment", back_populates="meters")
+
+
+class Tariff(Base):
+    __tablename__ = "tariffs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    price_per_square_meter = Column(Float)

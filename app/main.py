@@ -1,61 +1,63 @@
-from fastapi import FastAPI, HTTPException
-from app.models import House, Tariff
-from app.tasks import calculate_bill
-from app.database import db
-from bson import ObjectId
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.database import SessionLocal, engine
+from app import models
+from pydantic import BaseModel
+from app.schemas import (
+    HouseResponse,
+    HouseCreate,
+    TariffResponse,
+    TariffCreate,
+)
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
 
-# Эндпоинт для запуска расчета квартплаты
-@app.post("/calculate/{house_id}")
-async def start_calculation(house_id: str, month: str, year: int):
-    task = calculate_bill.apply_async(args=[house_id, month, year])
-    return {"task_id": task.id}
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
-# Эндпоинт для получения прогресса расчета
-@app.get("/progress/{task_id}")
-async def get_task_progress(task_id: str):
-    task = calculate_bill.AsyncResult(task_id)
-    return {
-        "task_id": task_id,
-        "status": task.status,
-        "result": task.result if task.status == "SUCCESS" else None,
-    }
-
-
-# Эндпоинт для получения списка всех домов
-@app.get("/houses/")
-async def get_houses():
-    houses = list(db.houses.find())
+@app.get("/houses/", response_model=list[HouseResponse])
+def get_houses(db: Session = Depends(get_db)):
+    houses = db.query(models.House).all()
     return houses
 
 
-# Эндпоинт для создания нового дома
-@app.post("/houses/")
-async def create_house(house: House):
-    result = db.houses.insert_one(house.dict(by_alias=True))
-    return {"id": str(result.inserted_id)}
+@app.post("/houses/", response_model=HouseResponse)
+def create_house(house: HouseCreate, db: Session = Depends(get_db)):
+    new_house = models.House(address=house.address)
+    db.add(new_house)
+    db.commit()
+    db.refresh(new_house)
+    return new_house
 
 
-# Эндпоинт для получения данных конкретного дома по его ID
-@app.get("/houses/{house_id}")
-async def get_house(house_id: str):
-    house = db.houses.find_one({"_id": ObjectId(house_id)})
+@app.get("/houses/{house_id}", response_model=HouseResponse)
+def get_house(house_id: int, db: Session = Depends(get_db)):
+    house = db.query(models.House).filter(models.House.id == house_id).first()
     if not house:
         raise HTTPException(status_code=404, detail="House not found")
     return house
 
 
-# Эндпоинт для получения всех тарифов
-@app.get("/tariffs/")
-async def get_tariffs():
-    return list(db.tariffs.find())
+@app.get("/tariffs/", response_model=list[TariffResponse])
+def get_tariffs(db: Session = Depends(get_db)):
+    tariffs = db.query(models.Tariff).all()
+    return tariffs
 
 
-# Эндпоинт для создания нового тарифа
-@app.post("/tariffs/")
-async def create_tariff(tariff: Tariff):
-    result = db.tariffs.insert_one(tariff.dict(by_alias=True))
-    return {"id": str(result.inserted_id)}
+@app.post("/tariffs/", response_model=TariffResponse)
+def create_tariff(tariff: TariffCreate, db: Session = Depends(get_db)):
+    new_tariff = models.Tariff(
+        name=tariff.name, price_per_square_meter=tariff.price_per_square_meter
+    )
+    db.add(new_tariff)
+    db.commit()
+    db.refresh(new_tariff)
+    return new_tariff

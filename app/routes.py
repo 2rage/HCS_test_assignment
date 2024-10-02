@@ -1,49 +1,65 @@
-from fastapi import FastAPI, HTTPException
-from pymongo import MongoClient
-from bson import ObjectId
-from app.models import House, Tariff
+from fastapi import FastAPI, HTTPException, Depends
+from sqlalchemy.orm import Session
+from app import models
+from app.database import engine, SessionLocal
+from app.schemas import HouseCreate, TariffCreate
 
 app = FastAPI()
 
-client = MongoClient("mongodb://localhost:27017")
-db = client["billing_db"]
+
+models.Base.metadata.create_all(bind=engine)
 
 
-def serialize_dict(d):
-    return {str(k): str(v) if isinstance(v, ObjectId) else v for k, v in d.items()}
-
-
-def serialize_list(items):
-    return [serialize_dict(item) for item in items]
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 @app.post("/houses/")
-async def create_house(house: House):
-    result = db.houses.insert_one(house.dict(by_alias=True))
-    return {"id": str(result.inserted_id)}
+async def create_house(house: HouseCreate, db: Session = Depends(get_db)):
+    new_house = models.House(address=house.address)
+    db.add(new_house)
+    db.commit()
+    db.refresh(new_house)
+
+    for apartment in house.apartments:
+        new_apartment = models.Apartment(area=apartment.area, house_id=new_house.id)
+        db.add(new_apartment)
+
+    db.commit()
+
+    return {"id": new_house.id, "address": new_house.address}
 
 
 @app.get("/houses/{house_id}")
-async def get_house(house_id: str):
-    house = db.houses.find_one({"_id": ObjectId(house_id)})
+async def get_house(house_id: int, db: Session = Depends(get_db)):
+    house = db.query(models.House).filter(models.House.id == house_id).first()
     if not house:
         raise HTTPException(status_code=404, detail="House not found")
-    return serialize_dict(house)
+    return house
 
 
 @app.get("/houses/")
-async def get_all_houses():
-    houses = list(db.houses.find())
-    return serialize_list(houses)
+async def get_houses(db: Session = Depends(get_db)):
+    houses = db.query(models.House).all()
+    return houses
 
 
 @app.post("/tariffs/")
-async def create_tariff(tariff: Tariff):
-    result = db.tariffs.insert_one(tariff.dict(by_alias=True))
-    return {"id": str(result.inserted_id)}
+async def create_tariff(tariff: TariffCreate, db: Session = Depends(get_db)):
+    new_tariff = models.Tariff(
+        name=tariff.name, price_per_square_meter=tariff.price_per_square_meter
+    )
+    db.add(new_tariff)
+    db.commit()
+    db.refresh(new_tariff)
+    return {"id": new_tariff.id}
 
 
 @app.get("/tariffs/")
-async def get_tariffs():
-    tariffs = list(db.tariffs.find())
-    return serialize_list(tariffs)
+async def get_tariffs(db: Session = Depends(get_db)):
+    tariffs = db.query(models.Tariff).all()
+    return tariffs

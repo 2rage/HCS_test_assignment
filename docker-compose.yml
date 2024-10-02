@@ -1,27 +1,18 @@
-version: "3.12"
+version: '3.12'
 
 services:
-  web:
-    build: .
+  postgres:
+    image: postgres:13
+    container_name: postgres_container
+    restart: always
+    environment:
+      POSTGRES_USER: my_user
+      POSTGRES_PASSWORD: my_password
+      POSTGRES_DB: billing_db
     ports:
-      - "8000:8000"
+      - "5432:5432"
     volumes:
-      - .:/app
-    depends_on:
-      - mongodb
-      - redis
+      - postgres_data:/var/lib/postgresql/data
 
-  celery:
-    build: .
-    command: poetry run celery -A app.tasks worker --loglevel=info
-    depends_on:
-      - redis
-      - mongodb
-
-  redis:
-    image: "redis:alpine"
-
-  mongodb:
-    image: "mongo:latest"
-    ports:
-      - "27017:27017"
+volumes:
+  postgres_data:
