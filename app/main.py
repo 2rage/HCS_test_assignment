@@ -2,12 +2,14 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, engine
 from app import models
-from pydantic import BaseModel
 from app.schemas import (
     HouseResponse,
     HouseCreate,
     TariffResponse,
     TariffCreate,
+    ApartmentCreate,
+    ApartmentResponse,
+    HouseDetailResponse,
 )
 
 models.Base.metadata.create_all(bind=engine)
@@ -61,3 +63,45 @@ def create_tariff(tariff: TariffCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_tariff)
     return new_tariff
+
+
+@app.get("/houses/{house_id}/detail", response_model=HouseDetailResponse)
+async def get_house_detail(house_id: int, db: Session = Depends(get_db)):
+    house = db.query(models.House).filter(models.House.id == house_id).first()
+
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+
+    total_area = sum(apartment.area for apartment in house.apartments)
+    total_meters = sum(len(apartment.meters) for apartment in house.apartments)
+
+    return {
+        "id": house.id,
+        "address": house.address,
+        "total_area": total_area,
+        "total_meters": total_meters,
+        "apartments": house.apartments,
+    }
+
+
+@app.post("/houses/{house_id}/apartments/", response_model=ApartmentResponse)
+def create_apartment(
+    house_id: int, apartment: ApartmentCreate, db: Session = Depends(get_db)
+):
+    house = db.query(models.House).filter(models.House.id == house_id).first()
+
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+
+    new_apartment = models.Apartment(area=apartment.area, house_id=house_id)
+    db.add(new_apartment)
+    db.commit()
+    db.refresh(new_apartment)
+
+    for meter_data in apartment.meters:
+        new_meter = models.Meter(type=meter_data.type, apartment_id=new_apartment.id)
+        db.add(new_meter)
+
+    db.commit()
+
+    return new_apartment
