@@ -42,10 +42,9 @@ class MeterResponse(BaseModel):
 
 
 class MeterCreate(BaseModel):
-    type: str  # Тип счетчика, например "water", "electricity", "gas"
+    type: str
 
 
-# Pydantic модель для квартиры (Apartment)
 class ApartmentResponse(BaseModel):
     id: int
     area: float
@@ -72,3 +71,8 @@ class HouseDetailResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class BillCalculationRequest(BaseModel):
+    month: str
+    year: int

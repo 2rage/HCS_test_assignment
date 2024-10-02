@@ -1,4 +1,5 @@
-from app.tasks import celery_app
+from celery import Celery
 
-if __name__ == "__main__":
-    celery_app.start()
+celery_app = Celery("tasks", broker="redis://localhost:6379/0")
+
+celery_app.conf.update(result_backend="redis://localhost:6379/0")

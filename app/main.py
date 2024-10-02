@@ -11,6 +11,9 @@ from app.schemas import (
     ApartmentResponse,
     HouseDetailResponse,
 )
+from celery.result import AsyncResult
+from app.tasks import calculate_bills
+from app.models import Bill, Apartment
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -105,3 +108,36 @@ def create_apartment(
     db.commit()
 
     return new_apartment
+
+
+@app.post("/calculate/{house_id}")
+async def start_calculation(house_id: int, month: str, year: int):
+    task = calculate_bills.apply_async(args=[house_id, month, year])
+    return {"task_id": task.id}
+
+
+@app.get("/progress/{task_id}")
+async def get_task_progress(task_id: str):
+    task_result = AsyncResult(task_id)
+    if task_result.state == "PROGRESS":
+        return {
+            "task_id": task_id,
+            "status": task_result.state,
+            "progress": task_result.info,
+        }
+    else:
+        return {
+            "task_id": task_id,
+            "status": task_result.state,
+            "result": task_result.info,
+        }
+
+
+@app.get("/bills/{house_id}")
+def get_bills(house_id: int, db: Session = Depends(get_db)):
+    bills = db.query(Bill).join(Apartment).filter(Apartment.house_id == house_id).all()
+
+    if not bills:
+        raise HTTPException(status_code=404, detail="Для этого дома нет расчетов ЖКУ")
+
+    return bills

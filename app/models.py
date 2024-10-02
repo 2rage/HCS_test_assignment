@@ -17,8 +17,11 @@ class Apartment(Base):
     id = Column(Integer, primary_key=True, index=True)
     area = Column(Float)
     house_id = Column(Integer, ForeignKey("houses.id"))
+
     house = relationship("House", back_populates="apartments")
     meters = relationship("Meter", back_populates="apartment")
+
+    bills = relationship("Bill", back_populates="apartment")
 
 
 class Meter(Base):
@@ -37,3 +40,15 @@ class Tariff(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     price_per_square_meter = Column(Float)
+
+
+class Bill(Base):
+    __tablename__ = "bills"
+
+    id = Column(Integer, primary_key=True, index=True)
+    apartment_id = Column(Integer, ForeignKey("apartments.id"))
+    month = Column(String)
+    year = Column(Integer)
+    total = Column(Float)
+
+    apartment = relationship("Apartment", back_populates="bills")
